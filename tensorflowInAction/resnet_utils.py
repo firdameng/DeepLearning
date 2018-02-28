@@ -1,3 +1,4 @@
+# coding=utf-8
 # Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,7 +53,9 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.ops import nn_ops
 from tensorflow.python.ops import variable_scope
 
-
+'''创建一个类Block,是包含三个域scope,unit_fn,args的元组类型'''
+'''args是一个包含多个dict的list,作为block中unit的输入'''
+'''ResNet unit function是ResNet block中的unit函数'''
 class Block(collections.namedtuple('Block', ['scope', 'unit_fn', 'args'])):
   """A named tuple describing a ResNet block.
 
@@ -83,7 +86,7 @@ def subsample(inputs, factor, scope=None):
   else:
     return layers.max_pool2d(inputs, [1, 1], stride=factor, scope=scope)
 
-
+'''暂时不明白，总之是为了保证same卷积，'''
 def conv2d_same(inputs, num_outputs, kernel_size, stride, rate=1, scope=None):
   """Strided 2-D convolution with 'SAME' padding.
 
@@ -198,6 +201,7 @@ def stack_blocks_dense(net,
   rate = 1
 
   for block in blocks:
+    '''[net]参数对应values: The list of `Tensor` arguments that are passed to the op function'''
     with variable_scope.variable_scope(block.scope, 'block', [net]) as sc:
       for i, unit in enumerate(block.args):
         if output_stride is not None and current_stride > output_stride:
@@ -222,6 +226,8 @@ def stack_blocks_dense(net,
   return net
 
 
+'''arg_scope 功能是 Stores the default arguments for the given set of list_ops'''
+# 第二个参数为**kwargs，故要传入字典
 def resnet_arg_scope(weight_decay=0.0001,
                      batch_norm_decay=0.997,
                      batch_norm_epsilon=1e-5,

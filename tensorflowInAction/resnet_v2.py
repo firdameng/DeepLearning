@@ -1,3 +1,4 @@
+# coding=utf-8
 # Copyright 2016 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +25,7 @@ introduced by:
     Identity Mappings in Deep Residual Networks. arXiv: 1603.05027
 
 The key difference of the full preactivation 'v2' variant compared to the
-'v1' variant in [1] is the use of batch normalization before every weight layer.
+'v1' variant in [1] is the use of batch normalization before  weight layer.
 
 Typical use:
 
@@ -64,7 +65,7 @@ from tensorflow.python.ops import variable_scope
 
 resnet_arg_scope = resnet_utils.resnet_arg_scope
 
-
+'''这就有点像block了啊？？？？？这才是最核心的resnet unit ，多个unit组成block'''
 @add_arg_scope
 def bottleneck(inputs,
                depth,
@@ -73,7 +74,7 @@ def bottleneck(inputs,
                rate=1,
                outputs_collections=None,
                scope=None):
-  """Bottleneck residual unit variant with BN before convolutions.
+  """Bottleneck residual unit variant with BN before convolutions. 
 
   This is the full preactivation residual unit variant proposed in [2]. See
   Fig. 1(b) of [2] for its definition. Note that we use here the bottleneck
@@ -81,6 +82,8 @@ def bottleneck(inputs,
 
   When putting together two consecutive ResNet blocks that use this unit, one
   should use stride = 2 in the last unit of the first block.
+  
+  意思是root_block的最后一个unit的stride为2？？？？？？？？？
 
   Args:
     inputs: A tensor of size [batch, height, width, channels].
@@ -96,9 +99,12 @@ def bottleneck(inputs,
     The ResNet unit's output.
   """
   with variable_scope.variable_scope(scope, 'bottleneck_v2', [inputs]) as sc:
+    '''获取输入的通道数'''
     depth_in = utils.last_dimension(inputs.get_shape(), min_rank=4)
+    '''正则化在前'''
     preact = layers.batch_norm(
         inputs, activation_fn=nn_ops.relu, scope='preact')
+    '''计算shortcut，ifelse目的是保证与输出通道数一致，也即块与块连接处'''
     if depth == depth_in:
       shortcut = resnet_utils.subsample(inputs, stride, 'shortcut')
     else:
@@ -109,7 +115,7 @@ def bottleneck(inputs,
           normalizer_fn=None,
           activation_fn=None,
           scope='shortcut')
-
+    '''计算residual，depth_bottleneck为输出通道数，[1x1]->relu->[3x3]->relu->[1x1]，这里有3层'''
     residual = layers_lib.conv2d(
         preact, depth_bottleneck, [1, 1], stride=1, scope='conv1')
     residual = resnet_utils.conv2d_same(
@@ -122,11 +128,12 @@ def bottleneck(inputs,
         activation_fn=None,
         scope='conv3')
 
+    '''关键在于弄清楚resnet unit的输出'''
     output = shortcut + residual
 
     return utils.collect_named_outputs(outputs_collections, sc.name, output)
 
-
+'''生成各种resnet网络的函数'''
 def resnet_v2(inputs,
               blocks,
               num_classes=None,
@@ -145,6 +152,9 @@ def resnet_v2(inputs,
   Training for image classification on Imagenet is usually done with [224, 224]
   inputs, resulting in [7, 7] feature maps at the output of the last ResNet
   block for the ResNets defined in [1] that have nominal stride equal to 32.
+  
+  32 × 7 = 224 ，输入224*224 ，输出7*7
+  
   However, for dense prediction tasks we advise that one uses inputs with
   spatial dimensions that are multiples of 32 plus 1, e.g., [321, 321]. In
   this case the feature maps at the ResNet output will have spatial shape
@@ -201,24 +211,30 @@ def resnet_v2(inputs,
         outputs_collections=end_points_collection):
       with arg_scope([layers.batch_norm], is_training=is_training):
         net = inputs
+        '''根据include_root_block标记？？？标记是否要构造第一个unit'''
         if include_root_block:
           if output_stride is not None:
             if output_stride % 4 != 0:
               raise ValueError('The output_stride needs to be a multiple of 4.')
+            '''参考论文[2]中的设计,3个卷积层的话是 1x1 base_depth=》3x3 base_depth=> 1x1 base_depth*4'''
             output_stride /= 4
           # We do not include batch normalization or activation functions in
           # conv1 because the first ResNet unit will perform these. Cf.
           # Appendix of [2].
+          '''resnet最前面两个步长为2的层'''
           with arg_scope(
               [layers_lib.conv2d], activation_fn=None, normalizer_fn=None):
             net = resnet_utils.conv2d_same(net, 64, 7, stride=2, scope='conv1')
           net = layers.max_pool2d(net, [3, 3], stride=2, scope='pool1')
+        '''将残差学习模块 组好'''
         net = resnet_utils.stack_blocks_dense(net, blocks, output_stride)
         # This is needed because the pre-activation variant does not have batch
         # normalization or activation functions in the residual unit output. See
         # Appendix of [2].
+        '''后批量正则化，这是因为 residual net output后面既没有正则化也没有激活函数'''
         net = layers.batch_norm(
             net, activation_fn=nn_ops.relu, scope='postnorm')
+        '''最后接着平均池，和fc,根据标记来判断是否为最后一个residual unit'''
         if global_pool:
           # Global average pooling.
           net = math_ops.reduce_mean(net, [1, 2], name='pool5', keep_dims=True)
@@ -236,7 +252,7 @@ def resnet_v2(inputs,
         return net, end_points
 resnet_v2.default_image_size = 224
 
-
+'''块中有多个单元，块是什么？其中unit又是什么？block一般是不同，而unit一般是相同'''
 def resnet_v2_block(scope, base_depth, num_units, stride):
   """Helper function for creating a resnet_v2 bottleneck block.
 
